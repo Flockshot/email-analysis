@@ -4,32 +4,75 @@
 
 #define DIRECTORY_SIZE 30
 
+typedef char* string;
+
 struct Email
 {
     int id;
-    char sender[50];
-    char receipt[50];
+    char sender[51];
+    char receipt[51];
     int date;
     int words;
+    string content;
 };
 typedef struct Email* Email;
 
+struct GraphHead
+{
+    int count;
+    struct GraphVertex *first;
+};
+typedef struct GraphHead* Graph;
+
+struct GraphVertex
+{
+    struct GraphVertex *next;
+    char data[51];
+    int totalWordsReceived;
+    int inDegree;
+    int outDegree;
+    int processed;
+    struct GraphArc *firstArc;
+};
+typedef struct GraphVertex* Vertex;
+
+struct GraphArc
+{
+    Vertex destination;
+    int weight;
+    struct GraphArc* nextArc;
+};
+typedef struct GraphArc* Arc;
 
 
-Email *readEmails(char *directory, int *numOfFiles);
-void menu();
-Email *heapSort(Email *emails, int numOfEmails, int criteria);
-Email binSearch(Email *sortedEmails, int numOfEmails, int searchKey);
-void printEmails(Email *emails, int numOfEmails);
+struct Node
+{
+    struct Node *next;
+    Vertex vertex;
+};
+typedef struct Node* List;
+
+
+
+
+
+
+
+Graph readEmails(char *directory, int *numOfFiles);
+Graph createGraph();
+void createVertex(Graph head, string data);
+int createEdge(Graph head, string from, string to, int words);
+void printGraph(Graph head);
+int checkPath(Graph head, string from, string to);
+
+
+//////////////////////////////////////////////////////
 
 
 char *buildFilePathString(char *directory, int number);
-int countWords(FILE *inFile);
-void buildHeap(Email *emails, int numOfEmails, int criteria);
-void heapify(Email *emails, int index, int numOfEmails, int criteria);
-int getCriteriaValue(Email email, int criteria);
-void swap(Email *emails, int swarpIndex1, int swapIndex2);
-void printEmail(Email email);
+string readContent(FILE *inFile, int* words);
+Vertex getVertex(Graph head, string data);
+
 
 
 int main()
@@ -42,53 +85,36 @@ int main()
     printf("Enter the number of data files: ");
     scanf("%d", &numOfFiles);
 
-    Email *emails = readEmails(directory, &numOfFiles);
+    Graph head = readEmails(directory, &numOfFiles);
 
-    if(numOfFiles>0)
-    {
-        int choice;
-        int searchKey;
+    printGraph(head);
 
-        do
-        {
-            menu();
+    char from[51];
+    char to[51];
+    printf("\nEnter the first person: ");
+    scanf("%s", from);
+    printf("Enter the second person: ");
+    scanf("%s", to);
 
-            printf("Command: ");
-            scanf("%d", &choice);
+    int havePath = checkPath(head, from, to);
 
-            switch(choice)
-            {
-                case 1:
-                    printEmails(heapSort(emails, numOfFiles, 1), numOfFiles);
-                    break;
-                case 2:
-                    printEmails(heapSort(emails, numOfFiles, 2), numOfFiles);
-                    break;
-                case 3:
-                    printEmails(heapSort(emails, numOfFiles, 3), numOfFiles);
-                    break;
-                case 4:
-                    printf("Enter the search key: ");
-                    scanf("%d", &searchKey);
-                    printEmail(binSearch(heapSort(emails, numOfFiles, 1), numOfFiles, searchKey));
-                    printf("\n");
-                    break;
-            }
-        }
-        while(choice!=5);
-    }
+    if(havePath)
+        printf("\nThere exists a path from %s to %s\n", from, to);
+    else
+        printf("\nNo path exists from %s to %s\n", from, to);
 
-    printf("Goodbye!\n");
     return 0;
 }
 
-//Time complexity is O(n^2), where n is numOfFiles
-//Since we have a loop, which repeats O(n) complexity function n times, (countWords)
-Email *readEmails(char *directory, int *numOfFiles)
+
+
+Graph readEmails(char *directory, int *numOfFiles)
 {
     Email *emails = (Email*) malloc(*numOfFiles * sizeof(Email));
 
     int i;
+
+    Graph head = createGraph();
 
     for(i=1; i<=*numOfFiles; i++)
     {
@@ -107,88 +133,246 @@ Email *readEmails(char *directory, int *numOfFiles)
         Email email = (Email) malloc(sizeof(struct Email));
 
         fscanf(inFile, "%d\nFrom: %s\nTo: %s\nDate: %d\n", &email->id, email->sender, email->receipt, &email->date);
+        email->content = readContent(inFile, &email->words);
 
-        email->words = countWords(inFile);
+
+        createVertex(head, email->sender);
+        createVertex(head, email->receipt);
+        int error = createEdge(head, email->sender, email->receipt, email->words);
+
+        if(error == -1)
+            printf("Edge not created for file number %d because the sender does not exist\n", i);
+        else if(error == -2)
+            printf("Edge not created for file number %d because the receiver does not exist\n", i);
+
+
+
+        //printf("Content: %s\n", email->content);
+        //printf("Words: %d\n", email->words);
+
 
         emails[i-1] = email;
 
         fclose(inFile);
     }
 
+
     printf("\n%d emails have been read successfully!\n\n", (i-1));
     *numOfFiles = (i-1);
 
-    return emails;
+    return head;
 }
 
-//Time complexity is O(1)
-//Since there is no loop and each operation performs in constant time.
-void menu()
+
+Graph createGraph()
 {
-        printf("Please choose one of the following options:\n");
-        printf("\t(1) Display emails sorted by id\n");
-        printf("\t(2) Display emails sorted by number of words\n");
-        printf("\t(3) Display emails sorted by date\n");
-        printf("\t(4) Search email by ID\n");
-        printf("\t(5) Exit\n\n");
+    Graph head = (Graph) malloc(sizeof(struct GraphHead));
+    head->count=0;
+    head->first = NULL;
+    return head;
 }
 
-//Time complexity is O(n*lg(n)), where n = numOfEmails
-//Since we have buildHeap function that also have O(n*lg(n))
-//and then we have heapify function with O(lg(n)) repeating inside a loop n times.
-Email *heapSort(Email *emails, int numOfEmails, int criteria)
+
+void createVertex(Graph head, string data)
 {
-    buildHeap(emails, numOfEmails, criteria);
+    Vertex vertex = (Vertex) malloc(sizeof(struct GraphVertex));
 
-    for(int i=numOfEmails-1; i>=1; i--)
-    {
-        swap(emails, 0, i);
-        heapify(emails, 0, i, criteria);
-    }
+    vertex->next = NULL;
+    vertex->inDegree = 0;
+    vertex->outDegree = 0;
+    vertex->processed = 0;
+    vertex->totalWordsReceived = 0;
+    vertex->firstArc = NULL;
+    strcpy(vertex->data, data);
 
-    return emails;
-}
-
-//Time complexity is O(lg(n))
-//Since we have a loop, which repeats the constant time operations lg(n) times.
-//The loop repeats lg(n) times as on every iteration the size is effectively halved.
-Email binSearch(Email *sortedEmails, int numOfEmails, int searchKey)
-{
-    int min = 0;
-    int max = numOfEmails-1;
-
-    while(max-min > 0)
-    {
-        int mid = (min+max)/2;
-
-        if(sortedEmails[mid]->id < searchKey)
-            min = mid+1;
-        else
-            max = mid;
-    }
-
-    if(sortedEmails[min]->id == searchKey)
-        return sortedEmails[min];
+    if(head->first == NULL)
+        head->first = vertex;
     else
-        printf("Search key not found.\n");
+    {
+        Vertex temp = head->first;
 
-    return NULL;
+        while(temp->next != NULL)
+        {
+            if(!strcmp(temp->data, vertex->data))
+                return;
+            temp = temp->next;
+        }
+
+        if(!strcmp(temp->data, vertex->data))
+            return;
+
+        temp->next = vertex;
+    }
+
+    head->count++;
 }
 
-//Time complexity is O(n), where n = numOfEmails
-//Since we have a loop, which repeats O(1) complexity function n times.
-void printEmails(Email *emails, int numOfEmails)
+
+int createEdge(Graph head, string from, string to, int words)
 {
-    for(int i=0; i<numOfEmails; i++)
-        printEmail(emails[i]);
-    printf("\n");
+    Arc arc = (Arc) malloc(sizeof(struct GraphArc));
+    Vertex fromVertex = getVertex(head, from);
+    Vertex toVertex = getVertex(head, to);
+
+    if(fromVertex == NULL)
+        return -1;
+
+    if(toVertex == NULL)
+        return -2;
+
+    fromVertex->outDegree++;
+    toVertex->inDegree++;
+
+    arc->destination = toVertex;
+    arc->weight = words;
+    arc->nextArc = NULL;
+
+    toVertex->totalWordsReceived += words;
+
+
+    if(fromVertex->firstArc == NULL)
+        fromVertex->firstArc = arc;
+    else
+    {
+        Arc temp = fromVertex->firstArc;
+
+        if(temp->destination == toVertex)
+        {
+            temp->weight += words;
+            return 1;
+        }
+
+        while(temp->nextArc != NULL)
+        {
+            if(temp->destination == toVertex)
+            {
+                temp->weight += words;
+                return 1;
+            }
+
+            temp = temp->nextArc;
+        }
+
+        temp->nextArc=arc;
+    }
+
+    return 1;
+}
+
+void printGraph(Graph head)
+{
+    printf("\nThe resulting graph's adjacency list:\n");
+
+    List maxEmailList = (List) malloc(sizeof(struct Node));
+    maxEmailList->next = NULL;
+    maxEmailList->vertex = NULL;
+    List maxWordsList = (List) malloc(sizeof(struct Node));
+    maxWordsList->next = NULL;
+    maxWordsList->vertex = NULL;
+
+
+    Vertex tempVertex = head->first;
+
+    while(tempVertex != NULL)
+    {
+        printf("%s", tempVertex->data);
+
+        Arc tempArc = tempVertex->firstArc;
+        while(tempArc != NULL)
+        {
+            printf(" -> %s | %d", tempArc->destination->data, tempArc->weight);
+            tempArc = tempArc->nextArc;
+        }
+        printf("\n");
+
+        if(maxEmailList->vertex == NULL)
+        {
+            maxEmailList->vertex = tempVertex;
+        }
+        else
+        {
+            if(tempVertex->outDegree > maxEmailList->vertex->outDegree)
+            {
+                maxEmailList->vertex = tempVertex;
+                maxEmailList->next = NULL;
+            }
+            else if(tempVertex->outDegree == maxEmailList->vertex->outDegree)
+            {
+                maxEmailList->next = (List) malloc(sizeof(struct Node));
+                maxEmailList->next->next = NULL;
+                maxEmailList->vertex = tempVertex;
+            }
+        }
+
+        if(maxWordsList->vertex == NULL)
+            maxWordsList->vertex = tempVertex;
+        else
+        {
+            if(tempVertex->totalWordsReceived > maxWordsList->vertex->totalWordsReceived)
+            {
+                maxWordsList->vertex = tempVertex;
+                maxWordsList->next = NULL;
+            }
+            else if(tempVertex->totalWordsReceived == maxWordsList->vertex->totalWordsReceived)
+            {
+                maxWordsList->next = (List) malloc(sizeof(struct Node));
+                maxWordsList->next->next = NULL;
+                maxWordsList->vertex = tempVertex;
+            }
+        }
+
+        tempVertex = tempVertex->next;
+    }
+
+    printf("\nPeople with the maximum number of emails sent:\n");
+    List tempList = maxEmailList;
+    do
+    {
+        if(tempList->vertex != NULL)
+            printf("%s sent %d emails\n", tempList->vertex->data, tempList->vertex->outDegree);
+        tempList = tempList->next;
+    }
+    while(tempList != NULL);
+
+
+    printf("\nPeople with the maximum number of words received:\n");
+    tempList = maxWordsList;
+    do
+    {
+        if(tempList->vertex != NULL)
+            printf("%s received %d words\n", tempList->vertex->data, tempList->vertex->totalWordsReceived);
+        tempList = tempList->next;
+    }
+    while(tempList != NULL);
+}
+
+
+int checkPath(Graph head, string from, string to)
+{
+    Vertex tempVertex = head->first;
+    while(tempVertex != NULL)
+    {
+        if(!strcmp(tempVertex->data, from))
+        {
+            Arc tempArc = tempVertex->firstArc;
+            while(tempArc != NULL)
+            {
+                if(!strcmp(tempArc->destination->data, to))
+                    return 1;
+                tempArc = tempArc->nextArc;
+            }
+            return 0;
+        }
+        tempVertex = tempVertex->next;
+    }
+    return 0;
 }
 
 
 
+/////////////////////////////////////////////////////////////////////
 
-//Time complexity is O(1)
-//Since there is no loop and each operation performs in constant time.
+
 char *buildFilePathString(char *directory, int number)
 {
     char *file = (char*) malloc(sizeof(char) * DIRECTORY_SIZE);
@@ -204,97 +388,47 @@ char *buildFilePathString(char *directory, int number)
     return file;
 }
 
-//Time complexity is O(n), where n is the number of characters in the file.
-//Since we have a loop, which repeats the constant time operations n times.
-int countWords(FILE *inFile)
+string readContent(FILE *inFile, int* words)
 {
     if(inFile != NULL)
     {
+        int sizeIncrement = 10;
+        string temp = (string) calloc(sizeIncrement, sizeof(char));
+        int i = 0;
+        *words = 0;
+
         char currentFileChar = fgetc(inFile);
-        int words = 0;
         while(currentFileChar != EOF)
         {
             if(currentFileChar==' ')
-                words++;
-
+                (*words)++;
+            if(i%sizeIncrement == 0)
+                temp = (string) realloc(temp, i+sizeIncrement);
+            temp[i] = currentFileChar;
+            i++;
             currentFileChar = fgetc(inFile);
         }
-        return words==0 ? words : words+1;
+
+        if((*words)!=0)
+            (*words) += 1;
+
+        string content = (string) calloc(i-1, sizeof(char));
+        strncpy(content, temp, i-1);
+
+        free(temp);
+
+        return content;
     }
 
-    return 0;
+    return NULL;
 }
 
-//Time complexity is O(n*lg(n)), where n = (numOfEmails/2)
-//Since the function is calling heapify n times, which has O(lg(n)) complexity.
-void buildHeap(Email *emails, int numOfEmails, int criteria)
+Vertex getVertex(Graph head, string data)
 {
-    for(int i = (numOfEmails/2)-1; i>=0; i--)
-        heapify(emails, i, numOfEmails, criteria);
-}
+    Vertex vertex = head->first;
 
-//Time complexity is O(lg(n)), where n is the height of the tree.
-//Since the function is recursive, and each time it is called, it jumps up the height of the tree.
-//In best case it can also be O(1), if the index value is already the largest, meaning the subtree is sorted.
-void heapify(Email *emails, int index, int numOfEmails, int criteria)
-{
-    int leftIndex = (2*index)+1;
-    int rightIndex = (2*index)+2;
+    while(vertex != NULL && strcmp(vertex->data, data))
+        vertex = vertex->next;
 
-    Email left = emails[leftIndex];
-    Email right = emails[rightIndex];
-
-    int largest;
-    int indexValue = getCriteriaValue(emails[index], criteria);
-
-    if(leftIndex < numOfEmails && getCriteriaValue(left, criteria) > indexValue)
-        largest = leftIndex;
-    else
-        largest = index;
-
-    int largestValue = getCriteriaValue(emails[largest], criteria);
-
-    if(rightIndex < numOfEmails && getCriteriaValue(right, criteria) > largestValue)
-        largest = rightIndex;
-
-
-    if(largest != index)
-    {
-        swap(emails, index, largest);
-        heapify(emails, largest, numOfEmails, criteria);
-    }
-}
-
-//Time complexity is O(1)
-//Since there is no loop and each operation performs in constant time.
-int getCriteriaValue(Email email, int criteria)
-{
-    switch(criteria)
-    {
-        case 1:
-            return email->id;
-        case 2:
-            return email->words;
-        case 3:
-            return email->date;
-    }
-
-    return 0;
-}
-
-//Time complexity is O(1)
-//Since there is no loop and each operation performs in constant time.
-void swap(Email *emails, int swarpIndex1, int swapIndex2)
-{
-    Email temp = emails[swarpIndex1];
-    emails[swarpIndex1] = emails[swapIndex2];
-    emails[swapIndex2] = temp;
-}
-
-//Time complexity is O(1)
-//Since there is no loop and each operation performs in constant time.
-void printEmail(Email email)
-{
-    if(email!=NULL)
-        printf("\nId: %d\nSender: %s\nRecipient: %s\nDate: %d\nWords: %d\n", email->id, email->sender, email->receipt, email->date, email->words);
+    return vertex;
 }
