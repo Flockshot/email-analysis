@@ -49,8 +49,8 @@ The application is modular, with C functions built to handle each part of the pi
 
 5.  **Network Statistics (in `main`)**
   	 * After the graph is built, the `main` function iterates through the structure to find and report key insights, such as:
-    	 * The user who has **sent the most emails**.
-    	 * The user who has **received the highest total word count**.
+    	 * The user who has **sent the most emails**.
+    	 * The user who has **received the highest total word count**.
 
 ---
 
