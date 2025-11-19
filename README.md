@@ -18,9 +18,7 @@ The core of the application is a custom-built, directed, weighted graph. This gr
 * **Edges (Connections):** A directed edge from `User A` to `User B` is created if A sends an email to B.
 * **Edge Weights:** The weight of an edge represents the **cumulative word count** of all emails sent from one user to another. The system is designed to update this weight, summing the word counts if `User A` sends multiple emails to `User B`.
 
-> **[Image: A simple directed graph with 3 nodes and weighted edges]**
->
-> *(**Developer Note:** A small diagram showing A -> B (w: 150) and B -> C (w: 200) would be perfect here to illustrate the concept.)*
+![Image: A simple directed graph with weighted edges](.media/graph.png)
 
 ---
 
@@ -29,26 +27,26 @@ The core of the application is a custom-built, directed, weighted graph. This gr
 The application is modular, with C functions built to handle each part of the pipeline:
 
 1.  **`readEmails()`**
-  	 * Parses a directory of `.txt` email files.
-  	 * For each email, it identifies the sender and recipient(s).
-  	 * It counts the number of words in the email body.
-  	 * It calls `createVertex()` and `createEdge()` to build or update the graph.
+     * Parses a directory of `.txt` email files.
+     * For each email, it identifies the sender and recipient(s).
+     * It counts the number of words in the email body.
+     * It calls `createVertex()` and `createEdge()` to build or update the graph.
 
 2.  **`createVertex()` / `createEdge()`**
-  	 * Manages the graph's dynamic memory.
-  	 * `createVertex` adds a new user to the primary vertex list if they don't exist.
-  	 * `createEdge` adds a new node to a vertex's adjacency list. If an edge to that recipient already exists, it simply increments the edge's weight (cumulative word count).
+     * Manages the graph's dynamic memory.
+     * `createVertex` adds a new user to the primary vertex list if they don't exist.
+     * `createEdge` adds a new node to a vertex's adjacency list. If an edge to that recipient already exists, it simply increments the edge's weight (cumulative word count).
 
 3.  **`printGraph()`**
-  	 * Outputs the complete adjacency list to the console.
-  	 * It iterates through each vertex (user) and then traverses their linked list of outgoing edges, printing the destination user and the total word count (weight) for that connection.
+     * Outputs the complete adjacency list to the console.
+     * It iterates through each vertex (user) and then traverses their linked list of outgoing edges, printing the destination user and the total word count (weight) for that connection.
 
 4.  **`checkPath()`**
-  	 * Implements a graph traversal algorithm (Depth-First Search or Breadth-First Search).
-  	 * Given two users, this function determines if a communication path (a chain of emails) exists from the first user to the second, returning 1 if a path is found and 0 otherwise.
+     * Implements a graph traversal algorithm (Depth-First Search or Breadth-First Search).
+     * Given two users, this function determines if a communication path (a chain of emails) exists from the first user to the second, returning 1 if a path is found and 0 otherwise.
 
 5.  **Network Statistics (in `main`)**
-  	 * After the graph is built, the `main` function iterates through the structure to find and report key insights, such as:
+     * After the graph is built, the `main` function iterates through the structure to find and report key insights, such as:
     	 * The user who has **sent the most emails**.
     	 * The user who has **received the highest total word count**.
 
